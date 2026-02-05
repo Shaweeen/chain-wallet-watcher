@@ -1,82 +1,67 @@
-import { loadConfig } from './config';
-import { configureLogger } from './utils/logger';
-import { 
-  createEVMMonitor, 
-  SolanaMonitor, 
-  BitcoinMonitor,
-  evmEventEmitter,
-  solanaEventEmitter,
-  bitcoinEventEmitter,
-  IChainMonitor
-} from './chains';
-import { TelegramNotifier } from './notifications';
-import { ChainType, WalletConfig, NotificationPayload } from './types';
-
 export interface Env {
-  WALLET_STATE: KVNamespace;
+  RPC_URL: string;
+  WALLET_ADDRESS: string;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
-}
-
-async function runWatcher(env: Env) {
-  // Use environment variables for sensitive info
-  const config = loadConfig();
-  if (env.TELEGRAM_BOT_TOKEN) config.telegram.token = env.TELEGRAM_BOT_TOKEN;
-  if (env.TELEGRAM_CHAT_ID) config.telegram.chatId = env.TELEGRAM_CHAT_ID;
-  
-  configureLogger(config.logging);
-
-  const telegram = new TelegramNotifier(config.telegram);
-  const walletsByChain = new Map<ChainType, WalletConfig[]>();
-  for (const wallet of config.wallets) {
-    const existing = walletsByChain.get(wallet.chain) || [];
-    existing.push(wallet);
-    walletsByChain.set(wallet.chain, existing);
-  }
-
-  const monitors: IChainMonitor[] = [];
-  
-  const handleTransaction = async (data: { wallet: WalletConfig; transaction: any }) => {
-    const { wallet, transaction } = data;
-    const payload: NotificationPayload = { wallet, transaction };
-    
-    const monitor = monitors.find(m => m.chain === transaction.chain);
-    if (monitor) {
-      try {
-        payload.balance = await monitor.getBalance(wallet.address);
-      } catch (e) {}
-    }
-
-    await telegram.send(payload);
-  };
-
-  evmEventEmitter.on('transaction', handleTransaction);
-  solanaEventEmitter.on('transaction', handleTransaction);
-  bitcoinEventEmitter.on('transaction', handleTransaction);
-
-  for (const [chain, wallets] of walletsByChain.entries()) {
-    let monitor: IChainMonitor;
-    if (chain === ChainType.ETHEREUM || chain === ChainType.BSC || chain === ChainType.POLYGON) {
-      monitor = createEVMMonitor(chain, wallets);
-    } else if (chain === ChainType.SOLANA) {
-      monitor = new SolanaMonitor(wallets);
-    } else {
-      monitor = new BitcoinMonitor(wallets);
-    }
-    monitors.push(monitor);
-  }
-
-  // Run one-time check
-  await Promise.all(monitors.map(m => m.checkTransactions()));
+  THRESHOLD_ETH: string;
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    await runWatcher(env);
-    return new Response("Watcher executed");
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(handleSchedule(env));
   },
 
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runWatcher(env));
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    await handleSchedule(env);
+    return new Response("Worker is running");
   },
 };
+
+async function handleSchedule(env: Env) {
+  try {
+    const balanceWei = await getBalance(env.RPC_URL, env.WALLET_ADDRESS);
+    const balanceEth = Number(balanceWei) / 1e18;
+    const threshold = Number(env.THRESHOLD_ETH) || 0.1;
+
+    console.log(`Wallet ${env.WALLET_ADDRESS} balance: ${balanceEth} ETH (Threshold: ${threshold} ETH)`);
+
+    if (balanceEth < threshold) {
+      await sendTelegramNotification(
+        env.TELEGRAM_BOT_TOKEN,
+        env.TELEGRAM_CHAT_ID,
+        `â ï¸ ä½é¢ä¸è¶³è­¦æ¥\n\né±å: ${env.WALLET_ADDRESS}\nå½åä½é¢: ${balanceEth.toFixed(4)} ETH\néå¼: ${threshold} ETH`
+      );
+    }
+  } catch (error) {
+    console.error("Error in worker:", error);
+  }
+}
+
+async function getBalance(rpcUrl: string, address: string): Promise<string> {
+  const response = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "eth_getBalance",
+      params: [address, "latest"],
+      id: 1,
+    }),
+  });
+
+  const data: any = await response.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.result; // Hex string
+}
+
+async function sendTelegramNotification(token: string, chatId: string, message: string) {
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: message,
+    }),
+  });
+}
