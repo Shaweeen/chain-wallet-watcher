@@ -1,22 +1,7 @@
-name = "crypto-balance-monitor"
-main = "src/worker.ts"
-compatibility_date = "2024-01-01"
+name = "wallet-watcher"
+main = "dist/worker.js"
+compatibility_date = "2026-02-05"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
-crons = ["0 */6 * * *"]
-
-[vars]
-ETH_WALLET = "0xYourEthereumWalletAddress"
-ETH_RPC = "https://eth.llamarpc.com"
-BSC_WALLET = "0xYourBSCWalletAddress"
-BSC_RPC = "https://bsc-dataseed.binance.org"
-BASE_WALLET = "0xYourBaseWalletAddress"
-BASE_RPC = "https://mainnet.base.org"
-ARB_WALLET = "0xYourArbitrumWalletAddress"
-ARB_RPC = "https://arb1.arbitrum.io/rpc"
-SOL_WALLET = "YourSolanaWalletAddress"
-SOL_RPC = "https://api.mainnet-beta.solana.com"
-BTC_WALLET = "YourBitcoinAddress"
-TELEGRAM_BOT_TOKEN = "your-telegram-bot-token"
-TELEGRAM_CHAT_ID = "your-telegram-chat-id"
+crons = ["*/5 * * * *"]
