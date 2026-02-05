@@ -1,98 +1,65 @@
-# Chain Wallet Watcher Configuration
-# Copy this file to config.yaml and fill in your values
 
-# Telegram Bot Configuration
+# Chain Wallet Watcher Configuration / é¾ä¸é±åçæ§éç½®
+# Copy this file to config.yaml and fill in your values / å¤å¶æ­¤æä»¶ä¸º config.yaml å¹¶å¡«åå¯¹åºæ°å¼
+
+# Telegram Bot Configuration / Telegram æºå¨äººéç½®
 telegram:
-  botToken: "YOUR_TELEGRAM_BOT_TOKEN"
-  chatId: "YOUR_TELEGRAM_CHAT_ID"
-  # Optional: Custom message format
+  botToken: "YOUR_BOT_TOKEN" # Your Telegram Bot Token from @BotFather / æ¥èª @BotFather çæºå¨äºº Token
+  chatId: "YOUR_CHAT_ID"     # Your User ID or Group Chat ID / æ¨çç¨æ· ID æç¾¤ç» ID
+  # Optional: Custom message format (markdown/html) / å¯éï¼èªå®ä¹æ¶æ¯æ ¼å¼
   messageFormat: "markdown"
 
-# Blockchain Network Configuration
+# Blockchain Network Configuration (RPC Nodes) / åºåé¾ç½ç»éç½® (RPC èç¹)
 chains:
   ethereum:
     enabled: true
-    rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
-    # or use Infura: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"
+    rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY" # Ethereum RPC / ä»¥å¤ªå RPC
+    # Alternative: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"
     chainId: 1
     nativeCurrency: "ETH"
     explorer: "https://etherscan.io"
     
   bsc:
     enabled: true
-    rpcUrl: "https://bsc-dataseed.binance.org"
-    # Alternative: "https://bsc-dataseed1.ninicoin.io"
+    rpcUrl: "https://bsc-dataseed.binance.org" # Binance Smart Chain RPC / å¸å®æºè½é¾ RPC
     chainId: 56
     nativeCurrency: "BNB"
     explorer: "https://bscscan.com"
     
   polygon:
     enabled: true
-    rpcUrl: "https://polygon-rpc.com"
-    # or: "https://polygon-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
+    rpcUrl: "https://polygon-rpc.com" # Polygon RPC
     chainId: 137
     nativeCurrency: "MATIC"
     explorer: "https://polygonscan.com"
-    
+
   solana:
     enabled: true
-    rpcUrl: "https://api.mainnet-beta.solana.com"
-    # or use QuickNode: "https://YOUR_ENDPOINT.solana-mainnet.quiknode.pro"
+    rpcUrl: "https://api.mainnet-beta.solana.com" # Solana RPC
+    chainId: 101
     nativeCurrency: "SOL"
     explorer: "https://solscan.io"
-    
+
   bitcoin:
     enabled: true
-    apiUrl: "https://blockstream.info/api"
-    # Alternative: "https://mempool.space/api"
+    rpcUrl: "https://blockstream.info/api" # Bitcoin API/RPC (Example) / æ¯ç¹å¸ç½ç»æ¥å£
+    chainId: 0
     nativeCurrency: "BTC"
-    explorer: "https://blockstream.info"
+    explorer: "https://blockchain.info"
 
-# Wallets to Monitor
+# Wallet Monitoring Configuration / é±åçæ§éç½®
 wallets:
-  # Ethereum wallet example
-  - address: "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
-    chain: ethereum
-    label: "Main ETH Wallet"
-    # Optional: minimum value to trigger notification (in native currency)
-    minValue: 0.01
+  - address: "0x1234...5678"         # Wallet Address to watch / çæ§çé±åå°å
+    name: "Whale Wallet 1"           # Nickname for notifications / æéç¨çæµç§°
+    threshold: 0.1                   # Minimum transaction amount for alert / è§¦åè­¦æ¥çæå°äº¤æéé¢
+    chains: ["ethereum", "bsc"]      # Specific chains for this wallet / æ­¤é±åçæ§çç¹å®é¾
     
-  # BSC wallet example  
-  - address: "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
-    chain: bsc
-    label: "BSC Trading Wallet"
-    minValue: 0.1
-    
-  # Polygon wallet example
-  - address: "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
-    chain: polygon
-    label: "Polygon DeFi Wallet"
-    minValue: 1
-    
-  # Solana wallet example
-  - address: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
-    chain: solana
-    label: "Solana Main Wallet"
-    minValue: 0.1
-    
-  # Bitcoin wallet example
-  - address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
-    chain: bitcoin
-    label: "Bitcoin Cold Wallet"
-    minValue: 0.001
+  - address: "0xabcd...efgh"
+    name: "Active Trader"
+    threshold: 0.5
+    chains: ["polygon"]
 
-# Monitoring Settings
-monitoring:
-  # Polling interval in seconds (for chains without WebSocket support)
-  pollInterval: 30
-  # Number of retries on RPC failure
-  maxRetries: 3
-  # Retry delay in seconds
-  retryDelay: 5
-
-# Logging Configuration
-logging:
-  level: "info"  # debug, info, warn, error
-  file: "logs/watcher.log"
-  maxSize: "10m"
-  maxFiles: 5
+# Global Threshold Settings / å¨å±éå¼è®¾ç½®
+settings:
+  min_value_usd: 10.0                # Global minimum value in USD for any alert / å¨å±æå° USD é¢è­¦éé¢
+  check_interval: 60                 # Scanning interval in seconds / æ«æé´éï¼ç§ï¼
