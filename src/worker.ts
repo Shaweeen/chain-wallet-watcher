@@ -1,317 +1,174 @@
-import { ethers } from 'ethers';
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-
-export interface Env {
-  ETH_WALLET: string;
-  ETH_RPC: string;
-  BSC_WALLET: string;
-  BSC_RPC: string;
-  BASE_WALLET: string;
-  BASE_RPC: string;
-  ARB_WALLET: string;
-  ARB_RPC: string;
-  SOL_WALLET: string;
-  SOL_RPC: string;
-  BTC_WALLET: string;
+interface Env {
+  BALANCE_STORE: KVNamespace;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
+  ETH_WALLET?: string;
+  BASE_WALLET?: string;
+  ARB_WALLET?: string;
+  OP_WALLET?: string;
+  MATIC_WALLET?: string;
+  BSC_WALLET?: string;
+  AVAX_WALLET?: string;
+  FTM_WALLET?: string;
+  ETH_RPC?: string;
+  BASE_RPC?: string;
+  ARB_RPC?: string;
+  OP_RPC?: string;
+  MATIC_RPC?: string;
+  BSC_RPC?: string;
+  AVAX_RPC?: string;
+  FTM_RPC?: string;
 }
 
-interface TokenConfig {
-  [chain: string]: {
-    symbol: string;
-    rpc: string;
-    tokens: {
-      [tokenSymbol: string]: {
-        address: string;
-        decimals: number;
-      };
-    };
-  };
+interface ChainConfig {
+  name: string;
+  walletKey: keyof Env;
+  rpcKey: keyof Env;
+  symbol: string;
 }
 
-const TOKEN_CONFIG: TokenConfig = {
-  ethereum: {
-    symbol: 'ETH',
-    rpc: 'https://eth.llamarpc.com',
-    tokens: {
-      USDC: {
-        address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-        decimals: 6,
-      },
-      USDT: {
-        address: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-        decimals: 6,
-      },
-    },
-  },
-  bsc: {
-    symbol: 'BNB',
-    rpc: 'https://bsc-dataseed.binance.org',
-    tokens: {
-      USDC: {
-        address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
-        decimals: 18,
-      },
-      USDT: {
-        address: '0x55d398326f99059fF775485246999027B3197955',
-        decimals: 18,
-      },
-    },
-  },
-  base: {
-    symbol: 'ETH',
-    rpc: 'https://mainnet.base.org',
-    tokens: {
-      USDC: {
-        address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-        decimals: 6,
-      },
-      USDT: {
-        address: '0xfde4C962512795Fe91e7ee0aF254B29311A608e8',
-        decimals: 6,
-      },
-    },
-  },
-  arbitrum: {
-    symbol: 'ETH',
-    rpc: 'https://arb1.arbitrum.io/rpc',
-    tokens: {
-      USDC: {
-        address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-        decimals: 6,
-      },
-      USDT: {
-        address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
-        decimals: 6,
-      },
-    },
-  },
-};
+interface BalanceChange {
+  chain: string;
+  address: string;
+  previousBalance: string;
+  currentBalance: string;
+  change: string;
+  symbol: string;
+}
 
-const ERC20_ABI = [
-  'function balanceOf(address owner) view returns (uint256)',
-  'function decimals() view returns (uint8)',
+const CHAINS: ChainConfig[] = [
+  { name: 'Ethereum', walletKey: 'ETH_WALLET', rpcKey: 'ETH_RPC', symbol: 'ETH' },
+  { name: 'Base', walletKey: 'BASE_WALLET', rpcKey: 'BASE_RPC', symbol: 'ETH' },
+  { name: 'Arbitrum', walletKey: 'ARB_WALLET', rpcKey: 'ARB_RPC', symbol: 'ETH' },
+  { name: 'Optimism', walletKey: 'OP_WALLET', rpcKey: 'OP_RPC', symbol: 'ETH' },
+  { name: 'Polygon', walletKey: 'MATIC_WALLET', rpcKey: 'MATIC_RPC', symbol: 'MATIC' },
+  { name: 'BSC', walletKey: 'BSC_WALLET', rpcKey: 'BSC_RPC', symbol: 'BNB' },
+  { name: 'Avalanche', walletKey: 'AVAX_WALLET', rpcKey: 'AVAX_RPC', symbol: 'AVAX' },
+  { name: 'Fantom', walletKey: 'FTM_WALLET', rpcKey: 'FTM_RPC', symbol: 'FTM' },
 ];
 
-async function checkEVMBalances(
-  wallet: string,
-  rpcUrl: string,
-  chain: string,
-  env: Env
-): Promise<string[]> {
-  const messages: string[] = [];
-  const config = TOKEN_CONFIG[chain];
-
-  if (!config) {
-    return [`❌ Unknown chain: ${chain}`];
-  }
-
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-  try {
-    const nativeBalance = await provider.getBalance(wallet);
-    const nativeFormatted = ethers.formatEther(nativeBalance);
-    messages.push(
-      `${chain.toUpperCase()} ${config.symbol}: ${parseFloat(nativeFormatted).toFixed(4)}`
-    );
-
-    for (const [tokenSymbol, tokenData] of Object.entries(config.tokens)) {
-      try {
-        const contract = new ethers.Contract(
-          tokenData.address,
-          ERC20_ABI,
-          provider
-        );
-        const balance = await contract.balanceOf(wallet);
-        const formatted = ethers.formatUnits(balance, tokenData.decimals);
-        messages.push(
-          `${chain.toUpperCase()} ${tokenSymbol}: ${parseFloat(formatted).toFixed(2)}`
-        );
-      } catch (error) {
-        messages.push(
-          `${chain.toUpperCase()} ${tokenSymbol}: Error - ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
-  } catch (error) {
-    messages.push(
-      `${chain.toUpperCase()} native balance error: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-
-  return messages;
-}
-
-async function checkSolanaBalance(
-  wallet: string,
-  rpcUrl: string
-): Promise<string[]> {
-  const messages: string[] = [];
-
-  try {
-    const connection = new Connection(rpcUrl, 'confirmed');
-    const publicKey = new PublicKey(wallet);
-
-    const balance = await connection.getBalance(publicKey);
-    const solBalance = balance / LAMPORTS_PER_SOL;
-    messages.push(`SOLANA SOL: ${solBalance.toFixed(4)}`);
-
-    const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-    const usdcMint = new PublicKey(USDC_MINT);
-
-    const TOKEN_PROGRAM_ID = new PublicKey(
-      'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
-    );
-
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-      publicKey,
-      { mint: usdcMint }
-    );
-
-    if (tokenAccounts.value.length > 0) {
-      const usdcBalance =
-        tokenAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-      messages.push(`SOLANA USDC: ${usdcBalance.toFixed(2)}`);
-    } else {
-      messages.push(`SOLANA USDC: 0.00`);
-    }
-  } catch (error) {
-    messages.push(
-      `SOLANA error: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-
-  return messages;
-}
-
-async function checkBitcoinBalance(address: string): Promise<string[]> {
-  const messages: string[] = [];
-
-  try {
-    const response = await fetch(
-      `https://blockchain.info/q/addressbalance/${address}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const satoshis = await response.text();
-    const btc = parseInt(satoshis) / 100000000;
-    messages.push(`BITCOIN BTC: ${btc.toFixed(8)}`);
-  } catch (error) {
-    messages.push(
-      `BITCOIN error: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-
-  return messages;
-}
-
-async function sendTelegramMessage(
-  botToken: string,
-  chatId: string,
-  message: string
-): Promise<void> {
-  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-
-  const response = await fetch(url, {
+async function getBalance(rpcUrl: string, address: string): Promise<string> {
+  const response = await fetch(rpcUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_getBalance',
+      params: [address, 'latest'],
+      id: 1,
+    }),
+  });
+
+  const data = await response.json() as { result?: string; error?: unknown };
+  if (!data.result) {
+    throw new Error(`Failed to get balance: ${JSON.stringify(data.error)}`);
+  }
+
+  const balanceWei = BigInt(data.result);
+  const balanceEther = Number(balanceWei) / 1e18;
+  return balanceEther.toFixed(4);
+}
+
+function parseAddresses(addressString: string | undefined): string[] {
+  if (!addressString) return [];
+  return addressString.split(',').map(addr => addr.trim()).filter(addr => addr.length > 0);
+}
+
+async function sendTelegramMessage(botToken: string, chatId: string, message: string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
       text: message,
       parse_mode: 'HTML',
     }),
   });
+}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Telegram API error: ${response.status} - ${errorText}`);
+function formatBalanceChange(change: BalanceChange): string {
+  const changeNum = parseFloat(change.change);
+  const emoji = changeNum > 0 ? 'â¬ï¸' : changeNum < 0 ? 'â¬ï¸' : 'â¡ï¸';
+  const sign = changeNum > 0 ? '+' : '';
+  const truncatedAddress = `${change.address.slice(0, 6)}...${change.address.slice(-4)}`;
+  
+  return `Wallet: ${truncatedAddress}\nPrevious: ${change.previousBalance} ${change.symbol}\nCurrent: ${change.currentBalance} ${change.symbol}\nChange: ${sign}${change.change} ${change.symbol} ${emoji}`;
+}
+
+async function checkBalances(env: Env): Promise<void> {
+  const changes: BalanceChange[] = [];
+
+  for (const chain of CHAINS) {
+    const addressString = env[chain.walletKey] as string | undefined;
+    const rpcUrl = env[chain.rpcKey] as string | undefined;
+
+    if (!addressString || !rpcUrl) continue;
+
+    const addresses = parseAddresses(addressString);
+
+    for (const address of addresses) {
+      try {
+        const currentBalance = await getBalance(rpcUrl, address);
+        const storageKey = `${chain.name}:${address}`;
+        const previousBalance = await env.BALANCE_STORE.get(storageKey);
+
+        if (previousBalance && previousBalance !== currentBalance) {
+          const change = (parseFloat(currentBalance) - parseFloat(previousBalance)).toFixed(4);
+          changes.push({
+            chain: chain.name,
+            address,
+            previousBalance,
+            currentBalance,
+            change,
+            symbol: chain.symbol,
+          });
+        }
+
+        await env.BALANCE_STORE.put(storageKey, currentBalance);
+      } catch (error) {
+        console.error(`Error checking balance for ${chain.name} (${address}):`, error);
+      }
+    }
+  }
+
+  if (changes.length > 0) {
+    const groupedChanges = changes.reduce((acc, change) => {
+      if (!acc[change.chain]) acc[change.chain] = [];
+      acc[change.chain].push(change);
+      return acc;
+    }, {} as Record<string, BalanceChange[]>);
+
+    let message = 'ð <b>Balance Update</b>\n\n';
+    
+    for (const [chain, chainChanges] of Object.entries(groupedChanges)) {
+      message += `ð° <b>${chain}</b>\n`;
+      for (const change of chainChanges) {
+        message += formatBalanceChange(change) + '\n\n';
+      }
+    }
+
+    message += `â° ${new Date().toISOString().replace('T', ' ').slice(0, 19)} UTC`;
+
+    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, message);
   }
 }
 
 export default {
-  async scheduled(
-    controller: ScheduledController,
-    env: Env,
-    ctx: ExecutionContext
-  ): Promise<void> {
-    await handleScheduled(env);
+  async fetch(request: Request, env: Env): Promise<Response> {
+    try {
+      await checkBalances(env);
+      return new Response('Balance check completed', { status: 200 });
+    } catch (error) {
+      console.error('Error:', error);
+      return new Response(`Error: ${error}`, { status: 500 });
+    }
   },
 
-  async fetch(
-    request: Request,
-    env: Env,
-    ctx: ExecutionContext
-  ): Promise<Response> {
-    if (request.method === 'GET' && new URL(request.url).pathname === '/check') {
-      try {
-        await handleScheduled(env);
-        return new Response('Balance check triggered successfully', {
-          status: 200,
-        });
-      } catch (error) {
-        return new Response(
-          `Error: ${error instanceof Error ? error.message : String(error)}`,
-          { status: 500 }
-        );
-      }
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    try {
+      await checkBalances(env);
+    } catch (error) {
+      console.error('Scheduled task error:', error);
     }
-
-    return new Response('Crypto Balance Monitor Worker', { status: 200 });
   },
 };
-
-async function handleScheduled(env: Env): Promise<void> {
-  const allMessages: string[] = [];
-
-  const ethMessages = await checkEVMBalances(
-    env.ETH_WALLET,
-    env.ETH_RPC,
-    'ethereum',
-    env
-  );
-  allMessages.push(...ethMessages);
-
-  const bscMessages = await checkEVMBalances(
-    env.BSC_WALLET,
-    env.BSC_RPC,
-    'bsc',
-    env
-  );
-  allMessages.push(...bscMessages);
-
-  const baseMessages = await checkEVMBalances(
-    env.BASE_WALLET,
-    env.BASE_RPC,
-    'base',
-    env
-  );
-  allMessages.push(...baseMessages);
-
-  const arbMessages = await checkEVMBalances(
-    env.ARB_WALLET,
-    env.ARB_RPC,
-    'arbitrum',
-    env
-  );
-  allMessages.push(...arbMessages);
-
-  const solMessages = await checkSolanaBalance(env.SOL_WALLET, env.SOL_RPC);
-  allMessages.push(...solMessages);
-
-  const btcMessages = await checkBitcoinBalance(env.BTC_WALLET);
-  allMessages.push(...btcMessages);
-
-  const finalMessage = `<b>💰 Crypto Balance Report</b>\n\n${allMessages.join('\n')}`;
-
-  await sendTelegramMessage(
-    env.TELEGRAM_BOT_TOKEN,
-    env.TELEGRAM_CHAT_ID,
-    finalMessage
-  );
-}
