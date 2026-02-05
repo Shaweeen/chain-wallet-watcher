@@ -27,15 +27,6 @@ interface ChainConfig {
   symbol: string;
 }
 
-interface BalanceChange {
-  chain: string;
-  address: string;
-  previousBalance: string;
-  currentBalance: string;
-  change: string;
-  symbol: string;
-}
-
 const CHAINS: ChainConfig[] = [
   { name: 'Ethereum', walletKey: 'ETH_WALLET', rpcKey: 'ETH_RPC', symbol: 'ETH' },
   { name: 'Base', walletKey: 'BASE_WALLET', rpcKey: 'BASE_RPC', symbol: 'ETH' },
@@ -59,124 +50,73 @@ async function getBalance(rpcUrl: string, address: string): Promise<string> {
     }),
   });
 
-  const data = await response.json() as { result?: string; error?: unknown };
-  if (!data.result) {
-    throw new Error(`Failed to get balance from ${rpcUrl}`);
+  const data: any = await response.json();
+  if (data.error) {
+    throw new Error(data.error.message);
   }
-  return data.result;
-}
 
-function hexToEth(hex: string): string {
-  const wei = BigInt(hex);
+  const hexBalance = data.result;
+  const wei = BigInt(hexBalance);
   const eth = Number(wei) / 1e18;
-  return eth.toFixed(4);
+  return eth.toFixed(6);
 }
 
-async function sendTelegramMessage(token: string, chatId: string, message: string) {
+async function sendTelegramMessage(token: string, chatId: string, text: string) {
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
-      text: message,
+      text: text,
       parse_mode: 'HTML',
     }),
   });
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const results: BalanceChange[] = [];
-    
-    // 调试信息：检查配置状态
-    const configStatus: any = {};
-    
+  async scheduled(event: any, env: Env, ctx: any): Promise<void> {
+    console.log('Starting scheduled balance check...');
+
     for (const chain of CHAINS) {
-      const walletStr = env[chain.walletKey] as string | undefined;
+      const walletsStr = env[chain.walletKey] as string | undefined;
       const rpcUrl = env[chain.rpcKey] as string | undefined;
-      
-      const wallets = walletStr ? walletStr.split(',').map(w => w.trim()).filter(w => w.length > 0) : [];
-      const hasRpc = !!rpcUrl;
-      
-      configStatus[chain.name] = {
-        configured_wallets: wallets.length,
-        has_rpc: hasRpc,
-        wallet_preview: walletStr ? (walletStr.length > 10 ? walletStr.substring(0, 10) + '...' : walletStr) : 'not_set'
-      };
 
-      if (wallets.length > 0 && rpcUrl) {
-        for (const address of wallets) {
-          try {
-            // 宽松校验：只要是字符串就尝试，报错会捕获
-            if (!address.startsWith('0x')) {
-              continue;
-            }
+      if (!walletsStr || !rpcUrl) continue;
 
-            const currentBalanceHex = await getBalance(rpcUrl, address);
-            const currentBalance = hexToEth(currentBalanceHex);
+      const wallets = walletsStr.split(',').map(addr => addr.trim()).filter(addr => addr);
 
-            const kvKey = `balance_${chain.name}_${address}`;
-            const previousBalance = await env.BALANCE_STORE.get(kvKey) || '0';
+      for (const address of wallets) {
+        try {
+          const currentBalance = await getBalance(rpcUrl, address);
+          const kvKey = `balance_${chain.name}_${address}`;
+          const previousBalance = await env.BALANCE_STORE.get(kvKey);
 
-            if (currentBalance !== previousBalance) {
-              const diff = (Number(currentBalance) - Number(previousBalance)).toFixed(4);
-              const changeStr = Number(diff) > 0 ? `+${diff}` : diff;
+          if (previousBalance !== null && previousBalance !== currentBalance) {
+            const diff = (parseFloat(currentBalance) - parseFloat(previousBalance)).toFixed(6);
+            const action = parseFloat(diff) > 0 ? 'Received' : 'Sent';
+            
+            const message = `<b>Balance Change Detected!</b>\n\n` +
+              `<b>Chain:</b> ${chain.name}\n` +
+              `<b>Address:</b> <code>${address}</code>\n` +
+              `<b>Action:</b> ${action}\n` +
+              `<b>Change:</b> ${diff} ${chain.symbol}\n` +
+              `<b>New Balance:</b> ${currentBalance} ${chain.symbol}`;
 
-              results.push({
-                chain: chain.name,
-                address,
-                previousBalance,
-                currentBalance,
-                change: changeStr,
-                symbol: chain.symbol,
-              });
-
-              await env.BALANCE_STORE.put(kvKey, currentBalance);
-            }
-          } catch (error) {
-            console.error(`Error checking ${chain.name} for ${address}: ${error}`);
+            await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, message);
           }
+
+          await env.BALANCE_STORE.put(kvKey, currentBalance);
+        } catch (error) {
+          console.error(`Error checking ${chain.name} balance for ${address}:`, error);
         }
       }
     }
-
-    if (results.length > 0) {
-      const message = results
-        .map(
-          (r) =>
-            `<b>${r.chain} Balance Change</b>\n` +
-            `Wallet: <code>${r.address}</code>\n` +
-            `Change: <b>${r.change} ${r.symbol}</b>\n` +
-            `New Balance: ${r.currentBalance} ${r.symbol}`
-        )
-        .join('\n\n');
-
-      await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, message);
-    }
-    
-    if (url.searchParams.has('test_tg')) {
-       await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, '🔔 <b>Chain Wallet Watcher Test</b>\nTelegram notification is working correctly!');
-       return new Response(JSON.stringify({ status: 'ok', message: 'Test Telegram message sent' }), {
-         headers: { 'Content-Type': 'application/json' },
-       });
-    }
-
-    return new Response(JSON.stringify({ 
-      status: 'ok', 
-      results,
-      config: configStatus,
-      debug: {
-        note: "Use ?test_tg=1 to test Telegram",
-        timestamp: new Date().toISOString()
-      }
-    }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
   },
 
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(this.fetch(new Request('http://localhost/scheduled'), env));
+  async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
+    return new Response('Chain Wallet Watcher is running. Use Scheduled Events for monitoring.', {
+      headers: { 'Content-Type': 'text/plain' },
+    });
   },
 };
