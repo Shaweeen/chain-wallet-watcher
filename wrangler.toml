@@ -1,10 +1,13 @@
 name = "wallet-watcher"
-main = "dist/index.js"
+main = "src/worker.ts"
 compatibility_date = "2026-02-05"
 
 [triggers]
 crons = ["*/5 * * * *"]
 
-[[kv_namespaces]]
-binding = "WALLET_STATE"
-id = "YOUR_KV_NAMESPACE_ID_HERE"
+[vars]
+RPC_URL = "https://cloudflare-eth.com"
+WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"
+THRESHOLD_ETH = "0.1"
+TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN"
+TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
