@@ -5,3 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "BALANCE_STORE"
+id = "2c45f0ee511c4cbba7c35d47d0561a68"
