@@ -1,0 +1,98 @@
+# Chain Wallet Watcher Configuration
+# Copy this file to config.yaml and fill in your values
+
+# Telegram Bot Configuration
+telegram:
+  botToken: "YOUR_TELEGRAM_BOT_TOKEN"
+  chatId: "YOUR_TELEGRAM_CHAT_ID"
+  # Optional: Custom message format
+  messageFormat: "markdown"
+
+# Blockchain Network Configuration
+chains:
+  ethereum:
+    enabled: true
+    rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
+    # or use Infura: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"
+    chainId: 1
+    nativeCurrency: "ETH"
+    explorer: "https://etherscan.io"
+    
+  bsc:
+    enabled: true
+    rpcUrl: "https://bsc-dataseed.binance.org"
+    # Alternative: "https://bsc-dataseed1.ninicoin.io"
+    chainId: 56
+    nativeCurrency: "BNB"
+    explorer: "https://bscscan.com"
+    
+  polygon:
+    enabled: true
+    rpcUrl: "https://polygon-rpc.com"
+    # or: "https://polygon-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
+    chainId: 137
+    nativeCurrency: "MATIC"
+    explorer: "https://polygonscan.com"
+    
+  solana:
+    enabled: true
+    rpcUrl: "https://api.mainnet-beta.solana.com"
+    # or use QuickNode: "https://YOUR_ENDPOINT.solana-mainnet.quiknode.pro"
+    nativeCurrency: "SOL"
+    explorer: "https://solscan.io"
+    
+  bitcoin:
+    enabled: true
+    apiUrl: "https://blockstream.info/api"
+    # Alternative: "https://mempool.space/api"
+    nativeCurrency: "BTC"
+    explorer: "https://blockstream.info"
+
+# Wallets to Monitor
+wallets:
+  # Ethereum wallet example
+  - address: "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
+    chain: ethereum
+    label: "Main ETH Wallet"
+    # Optional: minimum value to trigger notification (in native currency)
+    minValue: 0.01
+    
+  # BSC wallet example  
+  - address: "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
+    chain: bsc
+    label: "BSC Trading Wallet"
+    minValue: 0.1
+    
+  # Polygon wallet example
+  - address: "0x742d35Cc6634C0532925a3b844Bc9e7595f..."
+    chain: polygon
+    label: "Polygon DeFi Wallet"
+    minValue: 1
+    
+  # Solana wallet example
+  - address: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+    chain: solana
+    label: "Solana Main Wallet"
+    minValue: 0.1
+    
+  # Bitcoin wallet example
+  - address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+    chain: bitcoin
+    label: "Bitcoin Cold Wallet"
+    minValue: 0.001
+
+# Monitoring Settings
+monitoring:
+  # Polling interval in seconds (for chains without WebSocket support)
+  pollInterval: 30
+  # Number of retries on RPC failure
+  maxRetries: 3
+  # Retry delay in seconds
+  retryDelay: 5
+
+# Logging Configuration
+logging:
+  level: "info"  # debug, info, warn, error
+  file: "logs/watcher.log"
+  maxSize: "10m"
+  maxFiles: 5
