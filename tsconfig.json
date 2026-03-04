@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
     "lib": [
       "ES2022"
     ],
@@ -12,13 +12,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "types": [
       "@cloudflare/workers-types"
-    ]
+    ],
+    "isolatedModules": true,
+    "noEmit": true
   },
   "include": [
     "src/**/*"
