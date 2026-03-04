@@ -1,7 +1,6 @@
 name = "wallet-watcher"
-main = "dist/worker.js"
+main = "src/worker.ts"
 compatibility_date = "2026-02-05"
-compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 crons = ["*/5 * * * *"]
