@@ -1,1 +1,0 @@
-export { TelegramNotifier } from './telegram';
